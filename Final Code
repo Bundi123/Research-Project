@@ -1,0 +1,123 @@
+for i in range (10,110):#goes through and pulls the peak height for each line imto an array
+    linedata=coadd_w_offset[i,1170:1280]
+    #plt.figure(figsize=(14, 6))
+    #plt.plot(linedata)
+    xaxis4=range(len(linedata))#gives width of range
+    g0_4start = np.max(linedata)#Next block is Gauss fit
+    g1_4start = np.argmax(linedata)
+    xa4_param, x_sigma_1 = tss8.gaussfit(xaxis4,linedata,g0=g0_4start, g1=g1_4start,g2=8,verbose=False)
+    fullwidthhalfmax=2*np.sqrt(2*np.log(2))*xa4_param[2]#calculates the fullmidth at half maximum, needed for the total brightness
+    brightness[i,0]=xa4_param[0]#*fullwidthhalfmax#claculates and saves the brightness
+
+    fracerror=np.sqrt((x_sigma_1[0]/xa4_param[0])**2+(x_sigma_1[2]/xa4_param[2])**2) #finds the error in the brightness as a fraction of the end value
+    abserror=fracerror*brightness[i,0]#calculates the absolute error in the total brightness
+    brightness[i,1]=abserror  #saves the error in the value next to the brightness, for ease
+
+plt.figure(figsize=(14, 6))#plots the brightness over the spatial axis
+plt.plot(brightness[10:100,0], label="H3+ Line Brightness")
+
+plt.plot(brightness[10:100,0]+brightness[10:100,1],'-.r')#plots upper error bound
+plt.plot(brightness[10:100,0]-brightness[10:100,1],'-.r', label="Error in H3+ Line Brightness")#plots lower error bound
+plt.title("H3+ Line Brightness Against Displacement")
+plt.ylabel("H3+ Line Brightness")
+plt.xticks(ticks=(0,20,40,60,80), labels=(10,30,50,70,90))
+plt.xlabel("Displacement")
+
+plt.legend()
+
+
+###############################################
+#WITHOUT THE REMOVAL OF PEAKS AND DIPS########
+###############################################
+
+####################################
+######  SUNLIGHT    ################
+####################################
+
+#Final plot from coadd image of mean x vs y.
+coad_shadow_region=coadd_w_offset[10:110,1700:1800]+coadd_w_offset[10:110,900:1000]+coadd_w_offset[10:110,1900:2000]
+ypos_4=np.mean(coad_shadow_region[:,],axis=1)
+yaxis4=range(len(ypos_4))
+g0_4start= np.max(ypos_4)
+g1_4start= np.argmax(ypos_4)
+h0_4start= np.min(ypos_4)
+h1_4start= np.argmin(ypos_4)
+ya4_param, y_sigma_1 = tss8.gaussfit_double(yaxis4, ypos_4, g0=g0_4start, g1=g1_4start,g2=6, h0= h0_4start, h1= h1_4start, h2=6, verbose=True)
+
+
+
+sunshadow = list()
+sunshadow_back = list()
+sunshadow_gauss = list()
+adjusted = list()
+for i in range (0,89):
+    gauss_val = ya4_param[3]*np.exp(-(i-ya4_param[4])**2/(2*ya4_param[5]**2))
+    back = ya4_param[6]+ya4_param[7]*i+ya4_param[8]*i**2
+    backgroundvalue = ya4_param[6]+ya4_param[7]*53+ya4_param[8]*53**2
+    sunshadow.append(gauss_val+back)
+    sunshadow_back.append(back)
+    sunshadow_gauss.append(gauss_val)
+
+plt.figure(figsize=(14, 6))#plots the brightness over the spatial axis
+plt.plot(ypos_4[:100], label="Mean Reflected Sunlight Brightness")
+plt.plot(sunshadow[:], label="Gaussian Curve Fit to Mean Reflected Sunlight Brightness")
+plt.title("Mean Reflected Sunlight Brightness for Against Displacement")
+plt.ylabel("Mean Reflected Sunlight Brightness")
+plt.xlabel("Displacement")
+plt.xticks(ticks=(0,20,40,60,80), labels=(10,30,50,70,90))
+plt.legend()
+
+#Scaling it as a percentage
+sunshadow_variation = list()
+for i in range (0,89):
+    sunshadow_variation_val = sunshadow_back[i] - sunshadow_gauss[i]
+    sunshadow_variation.append(2 -(sunshadow_variation_val/sunshadow_back[i]))
+
+########################
+####### H3+ ############
+########################
+
+#Double Gaussfit
+xpos_5=brightness[10:102,0]
+xaxis5=range(len(xpos_5))
+g0_5start= np.min(xpos_5[10:50])
+g1_5start= np.argmin(xpos_5[10:50])
+h0_5start= np.min(xpos_5[40:70])
+h1_5start= np.argmin(xpos_5[40:70])
+xa5_param, x_sigma_1 = tss8.gaussfit_double(xaxis5, xpos_5, g0=g0_5start, g1=28,g2=7, h0= h0_5start, h1=53, h2=8, verbose=True)
+
+#Scaling it as a percentage
+backgroundvalue = np.zeros([100,2])
+for i in range (10,100):
+    backgroundvalue[i,0] = xa5_param[6]+xa5_param[7]*(i)+xa5_param[8]*(i)**2
+
+    #errors in backgound
+    c3_comp=(x_sigma_1[6]/xa5_param[6])**2
+    c4_comp=(x_sigma_1[7]/(xa5_param[7]*(i))**2)
+    c5_comp=(x_sigma_1[8]/(xa5_param[8]*(i)**2))**2
+    backgroundvalue[i,1]= backgroundvalue[i,0]*np.sqrt(c3_comp+c4_comp+c5_comp)
+
+moonshadow_variation = np.zeros([100,2])
+for i in range (10,100):
+    moonshadow_variation_val = backgroundvalue[i,0] - brightness[i,0]
+    varerror=np.sqrt((backgroundvalue[i,1]**2)+(brightness[i,1]**2))
+    moonshadow_variation[i,0] = ((moonshadow_variation_val/backgroundvalue[i,0]))
+    moonshadow_variation[i,1] = (moonshadow_variation[i,0]*np.sqrt( ((varerror/moonshadow_variation_val)**2)+((backgroundvalue[i,1]/backgroundvalue[i,0])**2)))
+
+
+#####PLOTTING#####
+
+fig = plt.figure(figsize=(14, 6))
+fig.patch.set_facecolor('white')
+ax = plt.axes()
+ax.patch.set_facecolor('white')
+plt.plot(1-moonshadow_variation[10:99,0], label="Fractional Change in H3+ Emission")
+plt.plot(sunshadow_variation, label="Fractional Change in Reflected Sunlight")
+plt.plot(1-(moonshadow_variation[10:99,0]+moonshadow_variation[10:99,1]),'-.g', label="Error in the Fractional Change in H3+ Emission")#plots upper error bound
+plt.plot(1-(moonshadow_variation[10:99,0]-moonshadow_variation[10:99,1]),'-.g')#plots lower error bound
+plt.title("Fractional Change in both Reflected Sunlight and H3+ Emission Against Displacement")
+plt.ylabel("Fractional Change in Reflected Sunlight and H3+ Emission")
+plt.xlabel("Displacement")
+plt.legend()
+plt.xticks(ticks=(0,20,40,60,80), labels=(10,30,50,70,90))
+plt.show()
